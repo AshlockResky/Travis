@@ -4,6 +4,9 @@ const sendBtn = document.getElementById("send-btn");
 const voiceBtn = document.getElementById("voice-btn");
 
 const creatorName = "Creator";
+const SYSTEM_PROMPT = `You are LAEN, a helpful and concise AI assistant. Be friendly and keep responses safe.`;
+const HISTORY_KEY = 'laen_history';
+const MAX_HISTORY = 10; // number of previous messages to send as context
 
 function addMessage(text, sender) {
   const div = document.createElement("div");
@@ -14,27 +17,31 @@ function addMessage(text, sender) {
 }
 
 function speak(text) {
+  if (!('speechSynthesis' in window)) return;
   const utterance = new SpeechSynthesisUtterance(text);
-  
-  // Try to set a male voice
+  // Select a preferred voice if available
   const voices = speechSynthesis.getVoices();
-  const maleVoice = voices.find(voice => 
-    voice.name.toLowerCase().includes("male") || 
-    voice.name.includes("David") || 
-    voice.name.includes("James") ||
-    voice.name.includes("Google US English")
-  );
-  
-  if (maleVoice) {
-    utterance.voice = maleVoice;
-  }
-  
+  const preferred = voices.find(v => /david|mark|john|en-US|google us english/i.test(v.name) );
+  if (preferred) utterance.voice = preferred;
   utterance.rate = 1;
   utterance.pitch = 0.9;
   speechSynthesis.speak(utterance);
 }
 
-async function getAIResponse(message) {
+function loadHistory() {
+  try {
+    const raw = localStorage.getItem(HISTORY_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function saveHistory(history) {
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(history.slice(-MAX_HISTORY)));
+}
+
+async function fallbackLocalAI(message) {
   const lower = message.toLowerCase();
 
   if (lower.includes("who are you") || lower.includes("what are you")) {
@@ -56,10 +63,48 @@ async function getAIResponse(message) {
     return `You're welcome, ${creatorName}.`;
   }
   if (lower.includes("male voice") || lower.includes("change voice")) {
-    return `I have set my voice to a male tone for you, ${creatorName}.`;
+    return `I have set my voice preference for you, ${creatorName}.`;
   }
 
   return `I understand, ${creatorName}. You said: "${message}". I am still learning, but I am here for you.`;
+}
+
+async function getAIResponse(message) {
+  // Build message history to send as context
+  const history = loadHistory();
+  const messages = [
+    { role: 'system', content: SYSTEM_PROMPT },
+    ...history,
+    { role: 'user', content: message }
+  ];
+
+  try {
+    // Send to your server-side proxy at /api/chat
+    const res = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages })
+    });
+
+    if (!res.ok) {
+      throw new Error(`server returned ${res.status}`);
+    }
+
+    const data = await res.json();
+    if (data && data.reply) {
+      // Save to local history
+      const newHistory = [...history, { role: 'user', content: message }, { role: 'assistant', content: data.reply }];
+      saveHistory(newHistory);
+      return data.reply;
+    }
+
+    // Fallback if unexpected response
+    return await fallbackLocalAI(message);
+  } catch (err) {
+    console.error('AI request failed, using fallback:', err);
+    // If server or network fails, use the local rule-based fallback
+    return await fallbackLocalAI(message);
+  }
 }
 
 async function sendMessage() {
@@ -80,7 +125,10 @@ userInput.addEventListener("keypress", (e) => {
 });
 
 voiceBtn.addEventListener("click", () => {
-  const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+  const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!Recognition) return alert('Speech recognition not supported in this browser.');
+
+  const recognition = new Recognition();
   recognition.lang = "en-US";
   recognition.start();
 
@@ -89,6 +137,8 @@ voiceBtn.addEventListener("click", () => {
     userInput.value = transcript;
     sendMessage();
   };
+
+  recognition.onerror = (e) => console.error('Speech recognition error', e);
 });
 
 window.onload = () => {
