@@ -1,34 +1,44 @@
 // server.js
-// Simple Express server that proxies requests to OpenAI Chat Completions API.
+// Deployable Express server that serves the static frontend from /public and proxies to OpenAI.
 // Usage:
-// 1. Install dependencies: npm install express
-// 2. Run: OPENAI_API_KEY=sk-... SERVER_API_KEY=your_server_key node server.js
-// 3. From the frontend, POST to /api/chat with JSON: { messages: [ {role, content}, ... ] }
-//    Include header: X-API-KEY: your_server_key (if SERVER_API_KEY is set on the server)
+// 1. Install: npm install
+// 2. Set env vars: OPENAI_API_KEY and optionally SERVER_API_KEY
+// 3. Start: npm start
 
 import express from 'express';
 import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import rateLimit from 'express-rate-limit';
+import cors from 'cors';
 
 dotenv.config();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 app.use(express.json());
+app.use(cors());
+
+// Rate limiter for the API to prevent abuse
+const limiter = rateLimit({ windowMs: 60 * 1000, max: 20 }); // 20 requests per minute
+app.use('/api/', limiter);
 
 const OPENAI_KEY = process.env.OPENAI_API_KEY;
-const SERVER_API_KEY = process.env.SERVER_API_KEY; // API key required by clients to use this proxy
+const SERVER_API_KEY = process.env.SERVER_API_KEY; // optional
 
 if (!OPENAI_KEY) {
   console.warn('WARNING: OPENAI_API_KEY not set. The /api/chat endpoint will return an error.');
 }
 if (!SERVER_API_KEY) {
-  console.warn('WARNING: SERVER_API_KEY not set. Requests to /api/chat will NOT require an X-API-KEY header.');
+  console.warn('Note: SERVER_API_KEY not set. /api/chat will NOT require X-API-KEY header.');
 } else {
-  console.log('SERVER_API_KEY is set: /api/chat will require a matching X-API-KEY header');
+  console.log('SERVER_API_KEY is set; /api/chat requires a matching X-API-KEY header');
 }
 
-// Simple middleware to require the X-API-KEY header when SERVER_API_KEY is configured
+// Require X-API-KEY when SERVER_API_KEY is configured
 app.use((req, res, next) => {
-  if (req.path === '/api/chat') {
+  if (req.path.startsWith('/api/')) {
     if (SERVER_API_KEY) {
       const key = req.header('x-api-key') || req.header('X-API-KEY');
       if (!key || key !== SERVER_API_KEY) {
@@ -38,6 +48,9 @@ app.use((req, res, next) => {
   }
   next();
 });
+
+// Serve static frontend from /public
+app.use(express.static(path.join(__dirname, 'public')));
 
 app.post('/api/chat', async (req, res) => {
   if (!OPENAI_KEY) return res.status(500).json({ error: 'Server not configured with OPENAI_API_KEY' });
@@ -73,6 +86,11 @@ app.post('/api/chat', async (req, res) => {
     console.error('Error calling OpenAI', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
+});
+
+// Fallback: serve index.html for all other routes (single page app support)
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 const PORT = process.env.PORT || 3000;

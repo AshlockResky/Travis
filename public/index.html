@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>LAEN — AI Assistant</title>
+  <style>
+    body { font-family: system-ui, Arial; padding: 1rem; max-width: 720px; margin: 0 auto; }
+    #chat-box { border: 1px solid #ddd; height: 60vh; overflow:auto; padding: 1rem; background:#f9f9f9 }
+    .message { margin: .5rem 0; padding: .5rem; border-radius:6px; }
+    .message.user { background:#d1e7ff; text-align:right }
+    .message.ai { background:#fff; text-align:left }
+    #controls { display:flex; gap:.5rem; margin-top:.5rem }
+    input[type=text] { flex:1; padding:.5rem }
+    .small { font-size:0.9rem; color:#555 }
+    #server-key { width: 220px }
+  </style>
+</head>
+<body>
+  <h1>LAEN — AI Assistant</h1>
+  <div id="chat-box"></div>
+
+  <div id="controls">
+    <input id="user-input" type="text" placeholder="Type a message" />
+    <button id="send-btn">Send</button>
+    <button id="voice-btn">🎤</button>
+  </div>
+
+  <div style="margin-top:.5rem; display:flex; gap:.5rem; align-items:center">
+    <label class="small">Server API key (optional):</label>
+    <input id="server-key" type="text" placeholder="Enter server key for X-API-KEY" />
+    <button id="save-key">Save key (session)</button>
+    <button id="clear-key">Clear key</button>
+  </div>
+  <p class="small">Note: Do not hardcode secrets in public pages. Use this only for testing. For production, protect the API server-side.</p>
+
+  <script src="/script.js"></script>
+  <script>
+    // Wire up key save/clear to sessionStorage
+    const saveBtn = document.getElementById('save-key');
+    const clearBtn = document.getElementById('clear-key');
+    const keyInput = document.getElementById('server-key');
+    const stored = sessionStorage.getItem('server_key');
+    if (stored) keyInput.value = stored;
+
+    saveBtn.addEventListener('click', () => {
+      sessionStorage.setItem('server_key', keyInput.value.trim());
+      alert('Saved to sessionStorage');
+    });
+    clearBtn.addEventListener('click', () => {
+      sessionStorage.removeItem('server_key');
+      keyInput.value = '';
+    });
+  </script>
+</body>
+</html>
