@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: laen-server
+    env: node
+    plan: free
+    buildCommand: "npm install"
+    startCommand: "npm start"
+    repo: https://github.com/AshlockResky/Travis
+    branch: main
+    envVars:
+      - key: OPENAI_API_KEY
+      - key: SERVER_API_KEY
