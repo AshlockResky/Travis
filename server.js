@@ -26,6 +26,7 @@ app.use('/api/', limiter);
 
 const OPENAI_KEY = process.env.OPENAI_API_KEY;
 const SERVER_API_KEY = process.env.SERVER_API_KEY; // optional
+const MODEL = process.env.AI_MODEL || 'gpt-4-turbo'; // Default to GPT-4 Turbo, can override with env var
 
 if (!OPENAI_KEY) {
   console.warn('WARNING: OPENAI_API_KEY not set. The /api/chat endpoint will return an error.');
@@ -35,6 +36,7 @@ if (!SERVER_API_KEY) {
 } else {
   console.log('SERVER_API_KEY is set; /api/chat requires a matching X-API-KEY header');
 }
+console.log(`Using AI Model: ${MODEL}`);
 
 // Require X-API-KEY when SERVER_API_KEY is configured
 app.use((req, res, next) => {
@@ -66,10 +68,10 @@ app.post('/api/chat', async (req, res) => {
         'Authorization': `Bearer ${OPENAI_KEY}`
       },
       body: JSON.stringify({
-        model: 'gpt-3.5-turbo',
+        model: MODEL,
         messages: body.messages,
         temperature: 0.7,
-        max_tokens: 800
+        max_tokens: 2000
       })
     });
 
@@ -94,4 +96,4 @@ app.get('*', (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server listening on port ${PORT}. POST /api/chat`));
+app.listen(PORT, () => console.log(`Server listening on port ${PORT}. POST /api/chat. Using model: ${MODEL}`));
